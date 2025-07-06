@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+*.exe
 wilayah-api
 wilayah-api-*
 

@@ -75,6 +75,64 @@ definitions:
         example: SULAWESI SELATAN
         type: string
     type: object
+  main.ScraperInfoResponse:
+    properties:
+      api_key_required:
+        example: true
+        type: boolean
+      message:
+        example: Scraper control endpoints require API key authentication
+        type: string
+      methods: {}
+    type: object
+  main.ScraperProgressResponse:
+    properties:
+      desa:
+        example: 12890
+        type: integer
+      kabupaten:
+        example: 234
+        type: integer
+      kecamatan:
+        example: 1456
+        type: integer
+      provinces:
+        example: 15
+        type: integer
+      running:
+        example: true
+        type: boolean
+    type: object
+  main.ScraperStartResponse:
+    properties:
+      message:
+        example: Scraper started successfully
+        type: string
+      status:
+        example: running
+        type: string
+      threads:
+        example: 6
+        type: integer
+    type: object
+  main.ScraperStatusResponse:
+    properties:
+      running:
+        example: true
+        type: boolean
+      status:
+        example: running
+        type: string
+    type: object
+  main.ScraperStopResponse:
+    properties:
+      message:
+        example: Scraper stop signal sent
+        type: string
+      status:
+        example: stopping
+        type: string
+    type: object
   main.StatsResponse:
     properties:
       desa:
@@ -97,13 +155,13 @@ info:
     name: API Support
     url: http://www.swagger.io/support
   description: API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota,
-    Kecamatan, Desa/Kelurahan)
+    Kecamatan, Desa/Kelurahan) dengan fitur scraper control
   license:
     name: MIT
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Indonesian Region API
-  version: "1.0"
+  version: 2.1.0
 paths:
   /desa:
     get:
@@ -113,18 +171,22 @@ paths:
         parameters (pro, kab, kec) or combined parameter (desa)
       parameters:
       - description: Province ID (2 digits)
+        example: "73"
         in: query
         name: pro
         type: string
       - description: Kabupaten ID (2 digits)
+        example: "02"
         in: query
         name: kab
         type: string
       - description: Kecamatan ID (3 digits)
+        example: "010"
         in: query
         name: kec
         type: string
       - description: 'Combined code: Province + Kabupaten + Kecamatan (7 digits)'
+        example: "7302010"
         in: query
         name: desa
         type: string
@@ -170,7 +232,8 @@ paths:
       description: Get detailed information for any region by its code (2=province,
         4=kabupaten, 7=kecamatan, 10=desa)
       parameters:
-      - description: Region code
+      - description: Region code (2/4/7/10 digits)
+        example: "7302010001"
         in: path
         name: code
         required: true
@@ -200,6 +263,7 @@ paths:
       description: Retrieve all kabupaten/kota in a specific province
       parameters:
       - description: Province ID (2 digits)
+        example: "73"
         in: query
         name: pro
         required: true
@@ -232,14 +296,17 @@ paths:
         parameters (pro, kab) or combined parameter (kec)
       parameters:
       - description: Province ID (2 digits)
+        example: "73"
         in: query
         name: pro
         type: string
       - description: Kabupaten ID (2 digits)
+        example: "02"
         in: query
         name: kab
         type: string
       - description: 'Combined code: Province + Kabupaten (4 digits)'
+        example: "7302"
         in: query
         name: kec
         type: string
@@ -280,6 +347,151 @@ paths:
       summary: Get all provinces
       tags:
       - provinces
+  /scraper/info:
+    get:
+      consumes:
+      - application/json
+      description: Get information about API key requirement for scraper control endpoints
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API key information and usage examples
+          schema:
+            $ref: '#/definitions/main.ScraperInfoResponse'
+      summary: Get API key info
+      tags:
+      - scraper
+  /scraper/progress:
+    get:
+      consumes:
+      - application/json
+      description: Get the current progress of the scraping process with detailed
+        statistics
+      parameters:
+      - description: API Key for authentication
+        example: your_api_key_here
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scraping progress with statistics
+          schema:
+            $ref: '#/definitions/main.ScraperProgressResponse'
+        "401":
+          description: API key required
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "403":
+          description: Invalid API key
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get scraper progress
+      tags:
+      - scraper
+  /scraper/start:
+    post:
+      consumes:
+      - application/json
+      description: Start the data scraping process with specified number of threads
+      parameters:
+      - description: Number of threads (1-10, default 4)
+        example: 6
+        in: query
+        name: threads
+        type: integer
+      - description: API Key for authentication
+        example: your_api_key_here
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scraper started successfully
+          schema:
+            $ref: '#/definitions/main.ScraperStartResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: API key required
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "403":
+          description: Invalid API key
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Start scraper
+      tags:
+      - scraper
+  /scraper/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the current status of the scraper (running/stopped)
+      parameters:
+      - description: API Key for authentication
+        example: your_api_key_here
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scraper status information
+          schema:
+            $ref: '#/definitions/main.ScraperStatusResponse'
+        "401":
+          description: API key required
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "403":
+          description: Invalid API key
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get scraper status
+      tags:
+      - scraper
+  /scraper/stop:
+    post:
+      consumes:
+      - application/json
+      description: Stop the data scraping process gracefully
+      parameters:
+      - description: API Key for authentication
+        example: your_api_key_here
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scraper stopped successfully
+          schema:
+            $ref: '#/definitions/main.ScraperStopResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Stop scraper
+      tags:
+      - scraper
   /stats:
     get:
       consumes:
@@ -295,4 +507,11 @@ paths:
       summary: Get statistics
       tags:
       - statistics
+securityDefinitions:
+  ApiKeyAuth:
+    description: 'API Key for scraper control endpoints. Alternative: use ''api_key''
+      query parameter'
+    in: header
+    name: X-API-Key
+    type: apiKey
 swagger: "2.0"

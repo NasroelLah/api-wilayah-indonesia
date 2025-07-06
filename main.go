@@ -1,10 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -12,11 +18,12 @@ import (
 	"github.com/gofiber/swagger"
 
 	_ "wilayah-api/docs"
+	"wilayah-api/internal/scraper"
 )
 
 // @title           Indonesian Region API
-// @version         1.0
-// @description     API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan)
+// @version         2.1.0
+// @description     API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan) dengan fitur scraper control
 // @termsOfService  http://swagger.io/terms/
 
 // @contact.name   API Support
@@ -28,6 +35,11 @@ import (
 
 // @host      localhost:3000
 // @BasePath  /api/v1
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @description API Key for scraper control endpoints. Alternative: use 'api_key' query parameter
 
 // Structs for JSON data
 type Desa struct {
@@ -59,6 +71,46 @@ type WilayahData struct {
 
 // Global variable to store the loaded data
 var wilayahData *WilayahData
+var globalScraper *scraper.Scraper
+var apiKey string
+
+// API key middleware for scraper control endpoints
+func apiKeyMiddleware(c *fiber.Ctx) error {
+	// Skip middleware if API key is not set
+	if apiKey == "" {
+		return c.Next()
+	}
+
+	// Get API key from header or query parameter
+	providedKey := c.Get("X-API-Key")
+	if providedKey == "" {
+		providedKey = c.Query("api_key")
+	}
+
+	// Check if API key is provided and valid
+	if providedKey == "" {
+		return c.Status(401).JSON(fiber.Map{
+			"error": "API key is required. Use X-API-Key header or api_key query parameter",
+		})
+	}
+
+	if providedKey != apiKey {
+		return c.Status(403).JSON(fiber.Map{
+			"error": "Invalid API key",
+		})
+	}
+
+	return c.Next()
+}
+
+// Generate random API key
+func generateAPIKey() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		log.Fatal("Failed to generate API key:", err)
+	}
+	return hex.EncodeToString(bytes)
+}
 
 // Response structs
 type ProvinsiResponse struct {
@@ -110,21 +162,145 @@ type InfoResponse struct {
 	Kecamatan interface{} `json:"kecamatan,omitempty"`
 }
 
+// Scraper response models
+type ScraperStartResponse struct {
+	Message string `json:"message" example:"Scraper started successfully"`
+	Threads int    `json:"threads" example:"6"`
+	Status  string `json:"status" example:"running"`
+}
+
+type ScraperStopResponse struct {
+	Message string `json:"message" example:"Scraper stop signal sent"`
+	Status  string `json:"status" example:"stopping"`
+}
+
+type ScraperStatusResponse struct {
+	Status  string `json:"status" example:"running"`
+	Running bool   `json:"running" example:"true"`
+}
+
+type ScraperProgressResponse struct {
+	Provinces int  `json:"provinces" example:"15"`
+	Kabupaten int  `json:"kabupaten" example:"234"`
+	Kecamatan int  `json:"kecamatan" example:"1456"`
+	Desa      int  `json:"desa" example:"12890"`
+	Running   bool `json:"running" example:"true"`
+}
+
+type ScraperInfoResponse struct {
+	Message         string      `json:"message" example:"Scraper control endpoints require API key authentication"`
+	APIKeyRequired  bool        `json:"api_key_required" example:"true"`
+	Methods         interface{} `json:"methods"`
+}
+
+// findLatestDataFile searches for the most recent wilayah data file
+func findLatestDataFile() (string, error) {
+	outputDir := "scraper/output"
+	
+	// Check if output directory exists
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		// Fallback to current directory
+		return findDataFileInDir(".")
+	}
+	
+	// First try to find wilayah_final_*.json files
+	finalFile, err := findDataFileInDir(outputDir)
+	if err == nil {
+		return finalFile, nil
+	}
+	
+	// If no final file found, look for temp files
+	tempFile, err := findTempDataFile(outputDir)
+	if err == nil {
+		log.Printf("No final file found, using temp file: %s", tempFile)
+		return tempFile, nil
+	}
+	
+	// Last resort: look in current directory
+	return findDataFileInDir(".")
+}
+
+// findDataFileInDir finds the latest wilayah_final_*.json file in a directory
+func findDataFileInDir(dir string) (string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	
+	var candidates []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		
+		name := file.Name()
+		// Look for wilayah_final_*.json files
+		if strings.HasPrefix(name, "wilayah_final_") && strings.HasSuffix(name, ".json") {
+			candidates = append(candidates, filepath.Join(dir, name))
+		}
+	}
+	
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no wilayah_final_*.json files found in %s", dir)
+	}
+	
+	// Sort by filename (which includes date) to get the latest
+	sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
+	return candidates[0], nil
+}
+
+// findTempDataFile finds the latest temp_wilayah_*.json file
+func findTempDataFile(dir string) (string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	
+	var candidates []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		
+		name := file.Name()
+		// Look for temp_wilayah_*.json files
+		if strings.HasPrefix(name, "temp_wilayah_") && strings.HasSuffix(name, ".json") {
+			candidates = append(candidates, filepath.Join(dir, name))
+		}
+	}
+	
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("no temp_wilayah_*.json files found in %s", dir)
+	}
+	
+	// Sort by filename (which includes timestamp) to get the latest
+	sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
+	return candidates[0], nil
+}
+
 // Load JSON data from file
 func loadWilayahData() error {
-	file, err := os.Open("wilayah_final_2025.json")
+	// Find the latest data file from output folder
+	filename, err := findLatestDataFile()
 	if err != nil {
-		return fmt.Errorf("error opening file: %v", err)
+		return fmt.Errorf("error finding data file: %v", err)
+	}
+
+	log.Printf("Loading data from: %s", filename)
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filename, err)
 	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
 	wilayahData = &WilayahData{}
 	if err := decoder.Decode(wilayahData); err != nil {
-		return fmt.Errorf("error decoding JSON: %v", err)
+		return fmt.Errorf("error decoding JSON from %s: %v", filename, err)
 	}
 
-	log.Printf("Loaded %d provinces", len(wilayahData.Pro))
+	log.Printf("Successfully loaded %d provinces from %s", len(wilayahData.Pro), filename)
 	return nil
 }
 
@@ -232,7 +408,7 @@ func getProvinsi(c *fiber.Ctx) error {
 // @Tags         kabupaten
 // @Accept       json
 // @Produce      json
-// @Param        pro   query     string  true  "Province ID (2 digits)"
+// @Param        pro   query     string  true  "Province ID (2 digits)" example(73)
 // @Success      200   {array}   KabupatenResponse
 // @Failure      400   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
@@ -269,9 +445,9 @@ func getKabupaten(c *fiber.Ctx) error {
 // @Tags         kecamatan
 // @Accept       json
 // @Produce      json
-// @Param        pro   query     string  false  "Province ID (2 digits)"
-// @Param        kab   query     string  false  "Kabupaten ID (2 digits)"
-// @Param        kec   query     string  false  "Combined code: Province + Kabupaten (4 digits)"
+// @Param        pro   query     string  false  "Province ID (2 digits)" example(73)
+// @Param        kab   query     string  false  "Kabupaten ID (2 digits)" example(02)
+// @Param        kec   query     string  false  "Combined code: Province + Kabupaten (4 digits)" example(7302)
 // @Success      200   {array}   KecamatanResponse
 // @Failure      400   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
@@ -324,10 +500,10 @@ func getKecamatan(c *fiber.Ctx) error {
 // @Tags         desa
 // @Accept       json
 // @Produce      json
-// @Param        pro   query     string  false  "Province ID (2 digits)"
-// @Param        kab   query     string  false  "Kabupaten ID (2 digits)"
-// @Param        kec   query     string  false  "Kecamatan ID (3 digits)"
-// @Param        desa  query     string  false  "Combined code: Province + Kabupaten + Kecamatan (7 digits)"
+// @Param        pro   query     string  false  "Province ID (2 digits)" example(73)
+// @Param        kab   query     string  false  "Kabupaten ID (2 digits)" example(02)
+// @Param        kec   query     string  false  "Kecamatan ID (3 digits)" example(010)
+// @Param        desa  query     string  false  "Combined code: Province + Kabupaten + Kecamatan (7 digits)" example(7302010)
 // @Success      200   {array}   DesaResponse
 // @Failure      400   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
@@ -389,7 +565,7 @@ func getDesa(c *fiber.Ctx) error {
 // @Tags         info
 // @Accept       json
 // @Produce      json
-// @Param        code  path      string  true  "Region code"
+// @Param        code  path      string  true  "Region code (2/4/7/10 digits)" example(7302010001)
 // @Success      200   {object}  InfoResponse
 // @Failure      400   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
@@ -540,11 +716,218 @@ func getWilayahInfo(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
+// startScraper godoc
+// @Summary      Start scraper
+// @Description  Start the data scraping process with specified number of threads
+// @Tags         scraper
+// @Accept       json
+// @Produce      json
+// @Param        threads    query   int     false  "Number of threads (1-10, default 4)" example(6)
+// @Param        X-API-Key  header  string  true   "API Key for authentication" example(your_api_key_here)
+// @Success      200        {object}  ScraperStartResponse "Scraper started successfully"
+// @Failure      400        {object}  ErrorResponse
+// @Failure      401        {object}  ErrorResponse "API key required"
+// @Failure      403        {object}  ErrorResponse "Invalid API key"
+// @Router       /scraper/start [post]
+// @Security     ApiKeyAuth
+func startScraper(c *fiber.Ctx) error {
+	if globalScraper.IsRunning() {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Scraper is already running",
+		})
+	}
+
+	threads := c.QueryInt("threads", 4)
+	if threads < 1 || threads > 10 {
+		threads = 4
+	}
+
+	// Create new scraper instance with specified threads
+	globalScraper = scraper.NewScraper(scraper.ScraperConfig{
+		MaxWorkers: threads,
+		OutputDir:  "scraper/output",
+	})
+
+	// Start scraping in background
+	go func() {
+		if err := globalScraper.ScrapeAll(); err != nil {
+			log.Printf("❌ Scraper error: %v", err)
+		}
+	}()
+
+	return c.JSON(fiber.Map{
+		"message": "Scraper started successfully",
+		"threads": threads,
+		"status":  "running",
+	})
+}
+
+// stopScraper godoc
+// @Summary      Stop scraper
+// @Description  Stop the data scraping process gracefully
+// @Tags         scraper
+// @Accept       json
+// @Produce      json
+// @Param        X-API-Key  header  string  true   "API Key for authentication" example(your_api_key_here)
+// @Success      200        {object}  ScraperStopResponse "Scraper stopped successfully"
+// @Router       /scraper/stop [post]
+// @Security     ApiKeyAuth
+func stopScraper(c *fiber.Ctx) error {
+	if !globalScraper.IsRunning() {
+		return c.JSON(fiber.Map{
+			"message": "Scraper is not running",
+			"status":  "stopped",
+		})
+	}
+
+	globalScraper.Stop()
+
+	return c.JSON(fiber.Map{
+		"message": "Scraper stop signal sent",
+		"status":  "stopping",
+	})
+}
+
+// getScraperStatus godoc
+// @Summary      Get scraper status
+// @Description  Get the current status of the scraper (running/stopped)
+// @Tags         scraper
+// @Accept       json
+// @Produce      json
+// @Param        X-API-Key  header  string  true   "API Key for authentication" example(your_api_key_here)
+// @Success      200        {object}  ScraperStatusResponse "Scraper status information"
+// @Failure      401        {object}  ErrorResponse "API key required"
+// @Failure      403        {object}  ErrorResponse "Invalid API key"
+// @Router       /scraper/status [get]
+// @Security     ApiKeyAuth
+func getScraperStatus(c *fiber.Ctx) error {
+	isRunning := globalScraper.IsRunning()
+	status := "stopped"
+	if isRunning {
+		status = "running"
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  status,
+		"running": isRunning,
+	})
+}
+
+// getScraperProgress godoc
+// @Summary      Get scraper progress
+// @Description  Get the current progress of the scraping process with detailed statistics
+// @Tags         scraper
+// @Accept       json
+// @Produce      json
+// @Param        X-API-Key  header  string  true   "API Key for authentication" example(your_api_key_here)
+// @Success      200        {object}  ScraperProgressResponse "Scraping progress with statistics"
+// @Failure      401        {object}  ErrorResponse "API key required"
+// @Failure      403        {object}  ErrorResponse "Invalid API key"
+// @Router       /scraper/progress [get]
+// @Security     ApiKeyAuth
+func getScraperProgress(c *fiber.Ctx) error {
+	progress := globalScraper.GetProgress()
+	return c.JSON(progress)
+}
+
+// getAPIInfo godoc
+// @Summary      Get API key info
+// @Description  Get information about API key requirement for scraper control endpoints
+// @Tags         scraper
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  ScraperInfoResponse "API key information and usage examples"
+// @Router       /scraper/info [get]
+func getAPIInfo(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"message":          "Scraper control endpoints require API key authentication",
+		"api_key_required": apiKey != "",
+		"methods": fiber.Map{
+			"header":    "X-API-Key: your_api_key",
+			"query":     "?api_key=your_api_key",
+			"curl_example": fmt.Sprintf("curl -H \"X-API-Key: %s\" http://localhost:%s/api/v1/scraper/status", 
+				func() string {
+					if apiKey != "" {
+						return "YOUR_API_KEY"
+					}
+					return "NOT_REQUIRED"
+				}(), c.Get("Host")),
+		},
+	})
+}
+
 func main() {
+	// Parse command line arguments
+	if len(os.Args) < 2 {
+		// Default behavior: run API
+		runAPI("3000")
+		return
+	}
+
+	command := strings.ToLower(os.Args[1])
+
+	switch command {
+	case "api":
+		port := "3000"
+		if len(os.Args) > 2 {
+			port = os.Args[2]
+		}
+		runAPI(port)
+
+	case "scrape":
+		maxWorkers := 4
+		if len(os.Args) > 2 {
+			if os.Args[2] == "info" {
+				runScraperInfo()
+				return
+			}
+			if os.Args[2] == "clean" {
+				days := 7
+				if len(os.Args) > 3 {
+					if d, err := strconv.Atoi(os.Args[3]); err == nil {
+						days = d
+					}
+				}
+				runScraperClean(days)
+				return
+			}
+			if w, err := strconv.Atoi(os.Args[2]); err == nil && w > 0 && w <= 10 {
+				maxWorkers = w
+			}
+		}
+		runScraper(maxWorkers)
+
+	case "help", "--help", "-h":
+		scraper.ShowHelp()
+
+	default:
+		fmt.Printf("❌ Perintah tidak dikenal: %s\n", command)
+		fmt.Println("Gunakan 'help' untuk melihat perintah yang tersedia.")
+		scraper.ShowHelp()
+	}
+}
+
+func runAPI(port string) {
+	// Initialize API key for scraper control
+	apiKey = os.Getenv("SCRAPER_API_KEY")
+	if apiKey == "" {
+		apiKey = generateAPIKey()
+		log.Printf("🔑 Generated API Key for scraper control: %s", apiKey)
+		log.Printf("💡 To set a custom key, use environment variable: SCRAPER_API_KEY")
+	} else {
+		log.Printf("🔑 Using custom API Key from environment variable")
+	}
+
 	// Load wilayah data
 	if err := loadWilayahData(); err != nil {
 		log.Fatal("Failed to load wilayah data:", err)
 	}
+
+	// Initialize global scraper
+	globalScraper = scraper.NewScraper(scraper.ScraperConfig{
+		MaxWorkers: 4,
+		OutputDir:  "scraper/output",
+	})
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -585,13 +968,23 @@ func main() {
 	// Info endpoint with code parameter
 	api.Get("/info/:code", getWilayahInfo)
 
+	// Scraper control endpoints (protected with API key)
+	scraperGroup := api.Group("/scraper")
+	scraperGroup.Get("/info", getAPIInfo) // Public endpoint for API info
+	scraperGroup.Use(apiKeyMiddleware)
+	scraperGroup.Post("/start", startScraper)
+	scraperGroup.Post("/stop", stopScraper)
+	scraperGroup.Get("/status", getScraperStatus)
+	scraperGroup.Get("/progress", getScraperProgress)
+	scraperGroup.Get("/info", getAPIInfo) // Add API info endpoint
+
 	// Documentation endpoint
 	api.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"title":       "Indonesian Region API",
 			"version":     "1.0",
 			"description": "API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan)",
-			"swagger":     "http://localhost:3000/swagger/",
+			"swagger":     "http://localhost:" + port + "/swagger/",
 			"endpoints": fiber.Map{
 				"health":    "GET /api/v1/health - Health check",
 				"stats":     "GET /api/v1/stats - Statistics",
@@ -606,6 +999,13 @@ func main() {
 					"combined": "GET /api/v1/desa?desa=7302010 - Get desa by combined code",
 				},
 				"info": "GET /api/v1/info/{code} - Get detailed info by code (2=province, 4=kabupaten, 7=kecamatan, 10=desa)",
+				"scraper": fiber.Map{
+					"info":     "GET /api/v1/scraper/info - Get API key info (public)",
+					"start":    "POST /api/v1/scraper/start - Start scraping (requires API key)",
+					"stop":     "POST /api/v1/scraper/stop - Stop scraping (requires API key)",
+					"status":   "GET /api/v1/scraper/status - Get scraper status (requires API key)",
+					"progress": "GET /api/v1/scraper/progress - Get scraping progress (requires API key)",
+				},
 			},
 			"examples": fiber.Map{
 				"get_provinces":         "GET /api/v1/provinsi",
@@ -623,13 +1023,35 @@ func main() {
 	})
 
 	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-	}
-
 	log.Printf("🚀 Server starting on port %s", port)
 	log.Printf("📚 API Documentation: http://localhost:%s/api/v1", port)
 	log.Printf("📖 Swagger Documentation: http://localhost:%s/swagger/", port)
 	log.Fatal(app.Listen(":" + port))
+}
+
+func runScraper(maxWorkers int) {
+	s := scraper.NewScraper(scraper.ScraperConfig{
+		MaxWorkers: maxWorkers,
+		OutputDir:  "scraper/output",
+	})
+
+	s.SetupSignalHandler()
+
+	if err := s.ScrapeAll(); err != nil {
+		log.Printf("❌ Error during scraping: %v", err)
+	}
+}
+
+func runScraperInfo() {
+	s := scraper.NewScraper(scraper.ScraperConfig{
+		OutputDir: "scraper/output",
+	})
+	s.ShowCheckpointInfo()
+}
+
+func runScraperClean(days int) {
+	s := scraper.NewScraper(scraper.ScraperConfig{
+		OutputDir: "scraper/output",
+	})
+	s.CleanOldCheckpoints(days)
 }

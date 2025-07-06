@@ -40,24 +40,28 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "example": "73",
                         "description": "Province ID (2 digits)",
                         "name": "pro",
                         "in": "query"
                     },
                     {
                         "type": "string",
+                        "example": "02",
                         "description": "Kabupaten ID (2 digits)",
                         "name": "kab",
                         "in": "query"
                     },
                     {
                         "type": "string",
+                        "example": "010",
                         "description": "Kecamatan ID (3 digits)",
                         "name": "kec",
                         "in": "query"
                     },
                     {
                         "type": "string",
+                        "example": "7302010",
                         "description": "Combined code: Province + Kabupaten + Kecamatan (7 digits)",
                         "name": "desa",
                         "in": "query"
@@ -127,7 +131,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Region code",
+                        "example": "7302010001",
+                        "description": "Region code (2/4/7/10 digits)",
                         "name": "code",
                         "in": "path",
                         "required": true
@@ -171,6 +176,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "example": "73",
                         "description": "Province ID (2 digits)",
                         "name": "pro",
                         "in": "query",
@@ -218,18 +224,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "example": "73",
                         "description": "Province ID (2 digits)",
                         "name": "pro",
                         "in": "query"
                     },
                     {
                         "type": "string",
+                        "example": "02",
                         "description": "Kabupaten ID (2 digits)",
                         "name": "kab",
                         "in": "query"
                     },
                     {
                         "type": "string",
+                        "example": "7302",
                         "description": "Combined code: Province + Kabupaten (4 digits)",
                         "name": "kec",
                         "in": "query"
@@ -281,6 +290,230 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/main.ProvinsiResponse"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/scraper/info": {
+            "get": {
+                "description": "Get information about API key requirement for scraper control endpoints",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scraper"
+                ],
+                "summary": "Get API key info",
+                "responses": {
+                    "200": {
+                        "description": "API key information and usage examples",
+                        "schema": {
+                            "$ref": "#/definitions/main.ScraperInfoResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/scraper/progress": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get the current progress of the scraping process with detailed statistics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scraper"
+                ],
+                "summary": "Get scraper progress",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "your_api_key_here",
+                        "description": "API Key for authentication",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scraping progress with statistics",
+                        "schema": {
+                            "$ref": "#/definitions/main.ScraperProgressResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "API key required",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Invalid API key",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/scraper/start": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Start the data scraping process with specified number of threads",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scraper"
+                ],
+                "summary": "Start scraper",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 6,
+                        "description": "Number of threads (1-10, default 4)",
+                        "name": "threads",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "your_api_key_here",
+                        "description": "API Key for authentication",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scraper started successfully",
+                        "schema": {
+                            "$ref": "#/definitions/main.ScraperStartResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "API key required",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Invalid API key",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/scraper/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get the current status of the scraper (running/stopped)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scraper"
+                ],
+                "summary": "Get scraper status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "your_api_key_here",
+                        "description": "API Key for authentication",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scraper status information",
+                        "schema": {
+                            "$ref": "#/definitions/main.ScraperStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "API key required",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Invalid API key",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/scraper/stop": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Stop the data scraping process gracefully",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "scraper"
+                ],
+                "summary": "Stop scraper",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "your_api_key_here",
+                        "description": "API Key for authentication",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scraper stopped successfully",
+                        "schema": {
+                            "$ref": "#/definitions/main.ScraperStopResponse"
                         }
                     }
                 }
@@ -418,6 +651,88 @@ const docTemplate = `{
                 }
             }
         },
+        "main.ScraperInfoResponse": {
+            "type": "object",
+            "properties": {
+                "api_key_required": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Scraper control endpoints require API key authentication"
+                },
+                "methods": {}
+            }
+        },
+        "main.ScraperProgressResponse": {
+            "type": "object",
+            "properties": {
+                "desa": {
+                    "type": "integer",
+                    "example": 12890
+                },
+                "kabupaten": {
+                    "type": "integer",
+                    "example": 234
+                },
+                "kecamatan": {
+                    "type": "integer",
+                    "example": 1456
+                },
+                "provinces": {
+                    "type": "integer",
+                    "example": 15
+                },
+                "running": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "main.ScraperStartResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Scraper started successfully"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "running"
+                },
+                "threads": {
+                    "type": "integer",
+                    "example": 6
+                }
+            }
+        },
+        "main.ScraperStatusResponse": {
+            "type": "object",
+            "properties": {
+                "running": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "status": {
+                    "type": "string",
+                    "example": "running"
+                }
+            }
+        },
+        "main.ScraperStopResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Scraper stop signal sent"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "stopping"
+                }
+            }
+        },
         "main.StatsResponse": {
             "type": "object",
             "properties": {
@@ -439,17 +754,25 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "API Key for scraper control endpoints. Alternative: use 'api_key' query parameter",
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "2.1.0",
 	Host:             "localhost:3000",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "Indonesian Region API",
-	Description:      "API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan)",
+	Description:      "API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan) dengan fitur scraper control",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
