@@ -1,4 +1,12 @@
 # Indonesian Region API & Data Scraper
+![Go Version](https://img.shields.io/badge/go-1.21-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![API Docs](https://img.shields.io/badge/docs-Swagger-brightgreen)
+![Made with Fiber](https://img.shields.io/badge/made%20with-fiber-29abe2)
+
+RESTful API dan scraper realtime untuk data wilayah administratif Indonesia (provinsi, kabupaten, kecamatan, desa) – dibangun dengan Go Fiber, mendukung kontrol API, dokumentasi Swagger, dan multi-threading.
+
+Proyek open source ini menyediakan layanan API wilayah Indonesia dengan data yang diambil langsung dari sumber resmi SIPEDAS Kementerian Pertanian. Selain sebagai REST API yang cepat dan efisien, proyek ini juga mencakup scraper data terintegrasi yang dapat dijalankan melalui command line maupun endpoint API secara realtime.
 
 Proyek ini adalah aplikasi terintegrasi yang menyediakan:
 1. **RESTful API Server** - Untuk mengakses data wilayah Indonesia
@@ -9,7 +17,7 @@ Proyek ini adalah aplikasi terintegrasi yang menyediakan:
 
 ### Struktur Proyek
 ```
-scrape_api_wilayah/
+api_wilayah_indonesia/
 ├── main.go                    # Entry point utama
 ├── internal/
 │   └── scraper/
@@ -111,14 +119,7 @@ go run main.go api
 # Linux/macOS
 SCRAPER_API_KEY="your-custom-secret-key" go run main.go api
 ```
-# Install dependencies
-pip install requests tqdm
 
-# Jalankan scraper dengan setting default
-python scrape_api_wilayah.py scrape
-
-# Atau dengan custom thread count (1-8)
-python scrape_api_wilayah.py scrape 4
 ## 📋 Command Reference
 
 ### Bantuan
