@@ -1,0 +1,437 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan)",
+        "title": "Indonesian Region API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:3000",
+    "basePath": "/api/v1",
+    "paths": {
+        "/desa": {
+            "get": {
+                "description": "Retrieve all desa/kelurahan in a specific kecamatan. Can use separate parameters (pro, kab, kec) or combined parameter (desa)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "desa"
+                ],
+                "summary": "Get desa/kelurahan by province, kabupaten, and kecamatan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Province ID (2 digits)",
+                        "name": "pro",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Kabupaten ID (2 digits)",
+                        "name": "kab",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Kecamatan ID (3 digits)",
+                        "name": "kec",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Combined code: Province + Kabupaten + Kecamatan (7 digits)",
+                        "name": "desa",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.DesaResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Check if API is running",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/info/{code}": {
+            "get": {
+                "description": "Get detailed information for any region by its code (2=province, 4=kabupaten, 7=kecamatan, 10=desa)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "info"
+                ],
+                "summary": "Get detailed region info by code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Region code",
+                        "name": "code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.InfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kabupaten": {
+            "get": {
+                "description": "Retrieve all kabupaten/kota in a specific province",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kabupaten"
+                ],
+                "summary": "Get kabupaten/kota by province",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Province ID (2 digits)",
+                        "name": "pro",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.KabupatenResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kecamatan": {
+            "get": {
+                "description": "Retrieve all kecamatan in a specific kabupaten. Can use separate parameters (pro, kab) or combined parameter (kec)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kecamatan"
+                ],
+                "summary": "Get kecamatan by province and kabupaten",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Province ID (2 digits)",
+                        "name": "pro",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Kabupaten ID (2 digits)",
+                        "name": "kab",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Combined code: Province + Kabupaten (4 digits)",
+                        "name": "kec",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.KecamatanResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/provinsi": {
+            "get": {
+                "description": "Retrieve all provinces in Indonesia",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "provinces"
+                ],
+                "summary": "Get all provinces",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.ProvinsiResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "get": {
+                "description": "Get count statistics for all region types",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "statistics"
+                ],
+                "summary": "Get statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.StatsResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.DesaResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "001"
+                },
+                "nama": {
+                    "type": "string",
+                    "example": "GANTARANG"
+                }
+            }
+        },
+        "main.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Province not found"
+                }
+            }
+        },
+        "main.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "data_count": {
+                    "type": "object",
+                    "properties": {
+                        "provinces": {
+                            "type": "integer",
+                            "example": 38
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Indonesian Region API is running"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "OK"
+                }
+            }
+        },
+        "main.InfoResponse": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "integer",
+                    "example": 24
+                },
+                "id": {
+                    "type": "string",
+                    "example": "73"
+                },
+                "kabupaten": {},
+                "kecamatan": {},
+                "nama": {
+                    "type": "string",
+                    "example": "SULAWESI SELATAN"
+                },
+                "provinsi": {},
+                "type": {
+                    "type": "string",
+                    "example": "provinsi"
+                }
+            }
+        },
+        "main.KabupatenResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "02"
+                },
+                "nama": {
+                    "type": "string",
+                    "example": "BULUKUMBA"
+                }
+            }
+        },
+        "main.KecamatanResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "010"
+                },
+                "nama": {
+                    "type": "string",
+                    "example": "GANTARANG"
+                }
+            }
+        },
+        "main.ProvinsiResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "73"
+                },
+                "nama": {
+                    "type": "string",
+                    "example": "SULAWESI SELATAN"
+                }
+            }
+        },
+        "main.StatsResponse": {
+            "type": "object",
+            "properties": {
+                "desa": {
+                    "type": "integer",
+                    "example": 83931
+                },
+                "kabupaten": {
+                    "type": "integer",
+                    "example": 514
+                },
+                "kecamatan": {
+                    "type": "integer",
+                    "example": 7230
+                },
+                "provinces": {
+                    "type": "integer",
+                    "example": 38
+                }
+            }
+        }
+    }
+}

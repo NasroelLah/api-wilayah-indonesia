@@ -1,0 +1,298 @@
+basePath: /api/v1
+definitions:
+  main.DesaResponse:
+    properties:
+      id:
+        example: "001"
+        type: string
+      nama:
+        example: GANTARANG
+        type: string
+    type: object
+  main.ErrorResponse:
+    properties:
+      error:
+        example: Province not found
+        type: string
+    type: object
+  main.HealthResponse:
+    properties:
+      data_count:
+        properties:
+          provinces:
+            example: 38
+            type: integer
+        type: object
+      message:
+        example: Indonesian Region API is running
+        type: string
+      status:
+        example: OK
+        type: string
+    type: object
+  main.InfoResponse:
+    properties:
+      children:
+        example: 24
+        type: integer
+      id:
+        example: "73"
+        type: string
+      kabupaten: {}
+      kecamatan: {}
+      nama:
+        example: SULAWESI SELATAN
+        type: string
+      provinsi: {}
+      type:
+        example: provinsi
+        type: string
+    type: object
+  main.KabupatenResponse:
+    properties:
+      id:
+        example: "02"
+        type: string
+      nama:
+        example: BULUKUMBA
+        type: string
+    type: object
+  main.KecamatanResponse:
+    properties:
+      id:
+        example: "010"
+        type: string
+      nama:
+        example: GANTARANG
+        type: string
+    type: object
+  main.ProvinsiResponse:
+    properties:
+      id:
+        example: "73"
+        type: string
+      nama:
+        example: SULAWESI SELATAN
+        type: string
+    type: object
+  main.StatsResponse:
+    properties:
+      desa:
+        example: 83931
+        type: integer
+      kabupaten:
+        example: 514
+        type: integer
+      kecamatan:
+        example: 7230
+        type: integer
+      provinces:
+        example: 38
+        type: integer
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota,
+    Kecamatan, Desa/Kelurahan)
+  license:
+    name: MIT
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Indonesian Region API
+  version: "1.0"
+paths:
+  /desa:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all desa/kelurahan in a specific kecamatan. Can use separate
+        parameters (pro, kab, kec) or combined parameter (desa)
+      parameters:
+      - description: Province ID (2 digits)
+        in: query
+        name: pro
+        type: string
+      - description: Kabupaten ID (2 digits)
+        in: query
+        name: kab
+        type: string
+      - description: Kecamatan ID (3 digits)
+        in: query
+        name: kec
+        type: string
+      - description: 'Combined code: Province + Kabupaten + Kecamatan (7 digits)'
+        in: query
+        name: desa
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.DesaResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get desa/kelurahan by province, kabupaten, and kecamatan
+      tags:
+      - desa
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if API is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /info/{code}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information for any region by its code (2=province,
+        4=kabupaten, 7=kecamatan, 10=desa)
+      parameters:
+      - description: Region code
+        in: path
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.InfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get detailed region info by code
+      tags:
+      - info
+  /kabupaten:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all kabupaten/kota in a specific province
+      parameters:
+      - description: Province ID (2 digits)
+        in: query
+        name: pro
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.KabupatenResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get kabupaten/kota by province
+      tags:
+      - kabupaten
+  /kecamatan:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all kecamatan in a specific kabupaten. Can use separate
+        parameters (pro, kab) or combined parameter (kec)
+      parameters:
+      - description: Province ID (2 digits)
+        in: query
+        name: pro
+        type: string
+      - description: Kabupaten ID (2 digits)
+        in: query
+        name: kab
+        type: string
+      - description: 'Combined code: Province + Kabupaten (4 digits)'
+        in: query
+        name: kec
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.KecamatanResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get kecamatan by province and kabupaten
+      tags:
+      - kecamatan
+  /provinsi:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all provinces in Indonesia
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.ProvinsiResponse'
+            type: array
+      summary: Get all provinces
+      tags:
+      - provinces
+  /stats:
+    get:
+      consumes:
+      - application/json
+      description: Get count statistics for all region types
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.StatsResponse'
+      summary: Get statistics
+      tags:
+      - statistics
+swagger: "2.0"
