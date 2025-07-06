@@ -703,6 +703,45 @@ def update_global_data_safely(all_data, prov):
         scraper_state["current_data"] = all_data
 
 
+def show_help():
+    """Show help information"""
+    print("🔧 Scraper API Wilayah Indonesia")
+    print("=" * 50)
+    print()
+    print("📋 PERINTAH YANG TERSEDIA:")
+    print()
+    print("🚀 SCRAPING:")
+    print("   python scrape_api_wilayah.py                    - Mulai scraping (default)")
+    print("   python scrape_api_wilayah.py scrape             - Mulai/lanjutkan scraping")
+    print("   python scrape_api_wilayah.py scrape [threads]   - Scraping dengan N threads (1-8)")
+    print()
+    print("📊 MANAGEMENT:")
+    print("   python scrape_api_wilayah.py info               - Lihat info checkpoint")
+    print("   python scrape_api_wilayah.py clean [days]       - Hapus checkpoint lama")
+    print("   python scrape_api_wilayah.py fix <input> [out]  - Perbaiki encoding JSON")
+    print()
+    print("ℹ️ BANTUAN:")
+    print("   python scrape_api_wilayah.py help               - Tampilkan bantuan ini")
+    print("   python scrape_api_wilayah.py --help             - Tampilkan bantuan ini")
+    print("   python scrape_api_wilayah.py -h                 - Tampilkan bantuan ini")
+    print()
+    print("📖 CONTOH PENGGUNAAN:")
+    print("   python scrape_api_wilayah.py scrape 2           - Gunakan 2 threads")
+    print("   python scrape_api_wilayah.py clean 3            - Hapus checkpoint >3 hari")
+    print("   python scrape_api_wilayah.py fix data.json      - Perbaiki file data.json")
+    print()
+    print("🛑 STOP AMAN:")
+    print("   Ctrl+C                                           - Hentikan dengan checkpoint")
+    print()
+    print("📁 FILE OUTPUT:")
+    print("   output/checkpoints/checkpoint_YYYYMMDD.json     - Checkpoint harian")
+    print("   output/temp_wilayah_YYYYMMDD_HHMMSS.json        - File temporary")
+    print("   output/wilayah_final_YYYYMMDD.json              - Hasil akhir")
+    print()
+    print("📚 Dokumentasi lengkap: DOKUMENTASI_SCRAPER.md")
+    print("⚡ Quick reference: QUICK_REFERENCE.md")
+
+
 def set_max_workers(count):
     """Set the maximum number of worker threads"""
     global MAX_WORKERS
@@ -750,22 +789,10 @@ if __name__ == "__main__":
             input_file = sys.argv[2]
             output_file = sys.argv[3] if len(sys.argv) > 3 else None
             fix_existing_file(input_file, output_file)
+        elif command == "help" or command == "--help" or command == "-h":
+            show_help()
         else:
-            print("📋 Perintah yang tersedia:")
-            print(
-                "   python scrape_api_wilayah.py scrape [threads]   - Mulai/lanjutkan scraping"
-            )
-            print(
-                "                                                     threads: 1-8 (default: 4)"
-            )
-            print(
-                "   python scrape_api_wilayah.py info                - Lihat info checkpoint"
-            )
-            print(
-                "   python scrape_api_wilayah.py clean [days]        - Hapus checkpoint lama (default: 7 hari)"
-            )
-            print(
-                "   python scrape_api_wilayah.py fix <input_file> [output_file] - Perbaiki encoding file JSON"
-            )
+            print("❌ Perintah tidak dikenal. Gunakan 'help' untuk melihat perintah yang tersedia.")
+            show_help()
     else:
         scrape_all()

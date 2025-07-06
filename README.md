@@ -1,10 +1,22 @@
-# Indonesian Region API
+# Indonesian Region API & Data Scraper
 
-API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, Desa/Kelurahan) menggunakan Go Fiber.
+Proyek ini terdiri dari dua komponen utama:
+1. **Python Scraper** - Untuk mengambil data wilayah terbaru dari API SIPEDAS
+2. **Go API Server** - RESTful API untuk mengakses data wilayah Indonesia
 
-## Features
+## 🛠️ Components
 
-- ✅ RESTful API dengan Go Fiber
+### 1. Python Scraper (`scrape_api_wilayah.py`)
+Scraper multithreaded dengan fitur:
+- ✅ Resume otomatis dengan checkpoint
+- ✅ Parallel processing untuk performa optimal
+- ✅ Graceful shutdown (Ctrl+C)
+- ✅ Data cleaning dan normalisasi encoding
+- ✅ Progress tracking real-time
+
+### 2. Go API Server (`main.go`)
+RESTful API dengan fitur:
+- ✅ Go Fiber framework
 - ✅ Data wilayah Indonesia lengkap
 - ✅ Mendukung parameter terpisah dan gabungan
 - ✅ Response JSON yang konsisten
@@ -12,7 +24,41 @@ API untuk mengakses data wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan,
 - ✅ CORS enabled
 - ✅ Logging middleware
 
-## Installation
+## 📖 Documentation
+
+- **[📚 Dokumentasi Lengkap Scraper](DOKUMENTASI_SCRAPER.md)** - Panduan detail menjalankan scraper
+- **[⚡ Quick Reference](QUICK_REFERENCE.md)** - Cheat sheet commands
+- **[🔧 API Documentation](#api-documentation)** - Dokumentasi API endpoints
+
+## 🚀 Quick Start
+
+### Menjalankan Scraper (Ambil Data Terbaru)
+
+#### Cara Mudah - GUI Menu
+```bash
+# Windows (Batch)
+run_scraper.bat
+
+# Windows (PowerShell) - Lebih modern
+run_scraper.ps1
+
+# Linux/Mac
+./run_scraper.sh
+```
+
+#### Cara Manual - Command Line
+```bash
+# Install dependencies
+pip install requests tqdm
+
+# Jalankan scraper dengan setting default
+python scrape_api_wilayah.py scrape
+
+# Atau dengan custom thread count (1-8)
+python scrape_api_wilayah.py scrape 4
+```
+
+### Menjalankan API Server
 
 1. Pastikan Go 1.21+ sudah terinstall
 2. Clone atau download project ini
