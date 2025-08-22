@@ -519,6 +519,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/search": {
+            "get": {
+                "description": "Pencarian berdasarkan nama desa, kecamatan, kabupaten, atau provinsi. Prioritas hasil: prefix match \u003e substring match \u003e fuzzy (opsional). Dapat difilter level, paginasi, dan mengembalikan hasil terstruktur.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Cari wilayah (desa/kecamatan/kabupaten/provinsi)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "Benteng",
+                        "description": "Kata kunci pencarian (case-insensitive)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "example": 20,
+                        "description": "Batas jumlah hasil (1-200, default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 0,
+                        "description": "Offset/pagination start (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "desa",
+                        "description": "Batasi level: desa|kecamatan|kabupaten|provinsi",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "example": false,
+                        "description": "Aktifkan fuzzy match (Levenshtein)",
+                        "name": "fuzzy",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stats": {
             "get": {
                 "description": "Get count statistics for all region types",
@@ -730,6 +797,79 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "stopping"
+                }
+            }
+        },
+        "main.SearchItem": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "object",
+                    "properties": {
+                        "des": {
+                            "type": "string",
+                            "example": "001"
+                        },
+                        "kab": {
+                            "type": "string",
+                            "example": "01"
+                        },
+                        "kec": {
+                            "type": "string",
+                            "example": "010"
+                        },
+                        "pro": {
+                            "type": "string",
+                            "example": "73"
+                        }
+                    }
+                },
+                "label": {
+                    "type": "string",
+                    "example": "BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "desa"
+                }
+            }
+        },
+        "main.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.SearchItem"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "query": {
+                    "type": "string",
+                    "example": "Benteng"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "BENTENG",
+                        " BENTENG",
+                        " KEPULAUAN SELAYAR",
+                        " SULAWESI SELATAN"
+                    ]
                 }
             }
         },

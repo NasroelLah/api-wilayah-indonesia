@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -162,6 +163,157 @@ type InfoResponse struct {
 	Kecamatan interface{} `json:"kecamatan,omitempty"`
 }
 
+// Search response model
+type SearchResponse struct {
+	Query   string       `json:"query" example:"Benteng"`
+	Count   int          `json:"count" example:"3"`
+	Offset  int          `json:"offset,omitempty" example:"0"`
+	Limit   int          `json:"limit,omitempty" example:"50"`
+	Results []string     `json:"results" example:"BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN"`
+	Items   []SearchItem `json:"items,omitempty"`
+}
+
+// Structured search item
+type SearchItem struct {
+	Type string `json:"type" example:"desa"`
+	IDs  struct {
+		Pro string `json:"pro" example:"73"`
+		Kab string `json:"kab,omitempty" example:"01"`
+		Kec string `json:"kec,omitempty" example:"010"`
+		Des string `json:"des,omitempty" example:"001"`
+	} `json:"ids"`
+	Label string `json:"label" example:"BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN"`
+}
+
+// In-memory search index
+type (
+	desaIndex struct {
+		Pro, Kab, Kec, Des string
+		NameNorm           string
+		Label              string
+	}
+	kecIndex struct {
+		Pro, Kab, Kec string
+		NameNorm      string
+		Label         string
+	}
+	kabIndex struct {
+		Pro, Kab string
+		NameNorm string
+		Label    string
+	}
+	provIndex struct {
+		Pro      string
+		NameNorm string
+		Label    string
+	}
+	SearchIndex struct {
+		Desa      []desaIndex
+		Kecamatan []kecIndex
+		Kabupaten []kabIndex
+		Provinsi  []provIndex
+	}
+)
+
+var searchIndex *SearchIndex
+
+func normalizeName(s string) string {
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToUpper(r))
+		}
+	}
+	return b.String()
+}
+
+func buildSearchIndex() {
+	idx := &SearchIndex{}
+	for _, p := range wilayahData.Pro {
+		// Provinsi
+		idx.Provinsi = append(idx.Provinsi, provIndex{
+			Pro:      p.ID,
+			NameNorm: normalizeName(p.Nama),
+			Label:    p.Nama,
+		})
+		for _, k := range p.Kab {
+			// Kabupaten
+			idx.Kabupaten = append(idx.Kabupaten, kabIndex{
+				Pro: p.ID, Kab: k.ID,
+				NameNorm: normalizeName(k.Nama),
+				Label:    fmt.Sprintf("%s, %s", k.Nama, p.Nama),
+			})
+			for _, kc := range k.Kec {
+				// Kecamatan
+				idx.Kecamatan = append(idx.Kecamatan, kecIndex{
+					Pro: p.ID, Kab: k.ID, Kec: kc.ID,
+					NameNorm: normalizeName(kc.Nama),
+					Label:    fmt.Sprintf("%s, %s, %s", kc.Nama, k.Nama, p.Nama),
+				})
+				for _, d := range kc.Des {
+					// Desa
+					idx.Desa = append(idx.Desa, desaIndex{
+						Pro: p.ID, Kab: k.ID, Kec: kc.ID, Des: d.ID,
+						NameNorm: normalizeName(d.Nama),
+						Label:    fmt.Sprintf("%s, %s, %s, %s", d.Nama, kc.Nama, k.Nama, p.Nama),
+					})
+				}
+			}
+		}
+	}
+	searchIndex = idx
+}
+
+// Levenshtein distance (runes) for simple fuzzy matching
+func levenshtein(a, b string) int {
+	ar := []rune(a)
+	br := []rune(b)
+	n := len(ar)
+	m := len(br)
+	if n == 0 {
+		return m
+	}
+	if m == 0 {
+		return n
+	}
+	prev := make([]int, m+1)
+	curr := make([]int, m+1)
+	for j := 0; j <= m; j++ {
+		prev[j] = j
+	}
+	for i := 1; i <= n; i++ {
+		curr[0] = i
+		for j := 1; j <= m; j++ {
+			cost := 0
+			if ar[i-1] != br[j-1] {
+				cost = 1
+			}
+			del := prev[j] + 1
+			ins := curr[j-1] + 1
+			sub := prev[j-1] + cost
+			// min
+			if del < ins {
+				if del < sub {
+					curr[j] = del
+				} else {
+					curr[j] = sub
+				}
+			} else {
+				if ins < sub {
+					curr[j] = ins
+				} else {
+					curr[j] = sub
+				}
+			}
+		}
+		prev, curr = curr, prev
+	}
+	return prev[m]
+}
+
 // Scraper response models
 type ScraperStartResponse struct {
 	Message string `json:"message" example:"Scraper started successfully"`
@@ -188,34 +340,34 @@ type ScraperProgressResponse struct {
 }
 
 type ScraperInfoResponse struct {
-	Message         string      `json:"message" example:"Scraper control endpoints require API key authentication"`
-	APIKeyRequired  bool        `json:"api_key_required" example:"true"`
-	Methods         interface{} `json:"methods"`
+	Message        string      `json:"message" example:"Scraper control endpoints require API key authentication"`
+	APIKeyRequired bool        `json:"api_key_required" example:"true"`
+	Methods        interface{} `json:"methods"`
 }
 
 // findLatestDataFile searches for the most recent wilayah data file
 func findLatestDataFile() (string, error) {
 	outputDir := "scraper/output"
-	
+
 	// Check if output directory exists
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
 		// Fallback to current directory
 		return findDataFileInDir(".")
 	}
-	
+
 	// First try to find wilayah_final_*.json files
 	finalFile, err := findDataFileInDir(outputDir)
 	if err == nil {
 		return finalFile, nil
 	}
-	
+
 	// If no final file found, look for temp files
 	tempFile, err := findTempDataFile(outputDir)
 	if err == nil {
 		log.Printf("No final file found, using temp file: %s", tempFile)
 		return tempFile, nil
 	}
-	
+
 	// Last resort: look in current directory
 	return findDataFileInDir(".")
 }
@@ -226,24 +378,24 @@ func findDataFileInDir(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	var candidates []string
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
-		
+
 		name := file.Name()
 		// Look for wilayah_final_*.json files
 		if strings.HasPrefix(name, "wilayah_final_") && strings.HasSuffix(name, ".json") {
 			candidates = append(candidates, filepath.Join(dir, name))
 		}
 	}
-	
+
 	if len(candidates) == 0 {
 		return "", fmt.Errorf("no wilayah_final_*.json files found in %s", dir)
 	}
-	
+
 	// Sort by filename (which includes date) to get the latest
 	sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
 	return candidates[0], nil
@@ -255,24 +407,24 @@ func findTempDataFile(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	var candidates []string
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
-		
+
 		name := file.Name()
 		// Look for temp_wilayah_*.json files
 		if strings.HasPrefix(name, "temp_wilayah_") && strings.HasSuffix(name, ".json") {
 			candidates = append(candidates, filepath.Join(dir, name))
 		}
 	}
-	
+
 	if len(candidates) == 0 {
 		return "", fmt.Errorf("no temp_wilayah_*.json files found in %s", dir)
 	}
-	
+
 	// Sort by filename (which includes timestamp) to get the latest
 	sort.Sort(sort.Reverse(sort.StringSlice(candidates)))
 	return candidates[0], nil
@@ -344,7 +496,7 @@ func findKecamatan(kabupaten *Kabupaten, kecID string) *Kecamatan {
 // @Router       /health [get]
 func healthCheck(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
-		"status": "OK",
+		"status":  "OK",
 		"message": "Indonesian Region API is running",
 		"data_count": fiber.Map{
 			"provinces": len(wilayahData.Pro),
@@ -716,6 +868,201 @@ func getWilayahInfo(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
+// searchWilayah godoc
+// @Summary      Cari wilayah (desa/kecamatan/kabupaten/provinsi)
+// @Description  Pencarian berdasarkan nama desa, kecamatan, kabupaten, atau provinsi. Prioritas hasil: prefix match > substring match > fuzzy (opsional). Dapat difilter level, paginasi, dan mengembalikan hasil terstruktur.
+// @Tags         search
+// @Accept       json
+// @Produce      json
+// @Param        q      query     string  true  "Kata kunci pencarian (case-insensitive)"  example(Benteng)
+// @Param        limit  query     int     false "Batas jumlah hasil (1-200, default 50)"   example(20)
+// @Param        offset query     int     false "Offset/pagination start (default 0)"       example(0)
+// @Param        level  query     string  false "Batasi level: desa|kecamatan|kabupaten|provinsi" example(desa)
+// @Param        fuzzy  query     bool    false "Aktifkan fuzzy match (Levenshtein)"        example(false)
+// @Success      200    {object}  SearchResponse
+// @Failure      400    {object}  ErrorResponse
+// @Router       /search [get]
+func searchWilayah(c *fiber.Ctx) error {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		q = strings.TrimSpace(c.Query("query"))
+	}
+	if q == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Parameter 'q' atau 'query' wajib diisi",
+		})
+	}
+
+	limit := c.QueryInt("limit", 50)
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	offset := c.QueryInt("offset", 0)
+	if offset < 0 {
+		offset = 0
+	}
+	level := strings.ToLower(strings.TrimSpace(c.Query("level")))
+	fuzzyParam := strings.TrimSpace(strings.ToLower(c.Query("fuzzy")))
+	fuzzy := false
+	if b, err := strconv.ParseBool(fuzzyParam); err == nil {
+		fuzzy = b
+	}
+
+	if searchIndex == nil {
+		buildSearchIndex()
+	}
+
+	nq := normalizeName(q)
+	// helper buckets by match priority
+	prefixItems := make([]SearchItem, 0)
+	containsItems := make([]SearchItem, 0)
+	fuzzyItems := make([]SearchItem, 0)
+
+	addDes := func(e desaIndex) {
+		item := SearchItem{Type: "desa", Label: e.Label}
+		item.IDs.Pro, item.IDs.Kab, item.IDs.Kec, item.IDs.Des = e.Pro, e.Kab, e.Kec, e.Des
+		if strings.HasPrefix(e.NameNorm, nq) {
+			prefixItems = append(prefixItems, item)
+		} else if strings.Contains(e.NameNorm, nq) {
+			containsItems = append(containsItems, item)
+		} else if fuzzy {
+			// quick check first-letter to cut down distance calcs
+			if e.NameNorm != "" && nq != "" && e.NameNorm[0] == nq[0] {
+				// dynamic threshold by length
+				maxD := 2
+				ln := len([]rune(e.NameNorm))
+				if ln <= 5 {
+					maxD = 1
+				} else if ln > 12 {
+					maxD = 3
+				}
+				if levenshtein(e.NameNorm, nq) <= maxD {
+					fuzzyItems = append(fuzzyItems, item)
+				}
+			}
+		}
+	}
+	addKec := func(e kecIndex) {
+		item := SearchItem{Type: "kecamatan", Label: e.Label}
+		item.IDs.Pro, item.IDs.Kab, item.IDs.Kec = e.Pro, e.Kab, e.Kec
+		if strings.HasPrefix(e.NameNorm, nq) {
+			prefixItems = append(prefixItems, item)
+		} else if strings.Contains(e.NameNorm, nq) {
+			containsItems = append(containsItems, item)
+		} else if fuzzy {
+			if e.NameNorm != "" && nq != "" && e.NameNorm[0] == nq[0] {
+				maxD := 2
+				ln := len([]rune(e.NameNorm))
+				if ln <= 5 {
+					maxD = 1
+				} else if ln > 12 {
+					maxD = 3
+				}
+				if levenshtein(e.NameNorm, nq) <= maxD {
+					fuzzyItems = append(fuzzyItems, item)
+				}
+			}
+		}
+	}
+	addKab := func(e kabIndex) {
+		item := SearchItem{Type: "kabupaten", Label: e.Label}
+		item.IDs.Pro, item.IDs.Kab = e.Pro, e.Kab
+		if strings.HasPrefix(e.NameNorm, nq) {
+			prefixItems = append(prefixItems, item)
+		} else if strings.Contains(e.NameNorm, nq) {
+			containsItems = append(containsItems, item)
+		} else if fuzzy {
+			if e.NameNorm != "" && nq != "" && e.NameNorm[0] == nq[0] {
+				maxD := 2
+				ln := len([]rune(e.NameNorm))
+				if ln <= 5 {
+					maxD = 1
+				} else if ln > 12 {
+					maxD = 3
+				}
+				if levenshtein(e.NameNorm, nq) <= maxD {
+					fuzzyItems = append(fuzzyItems, item)
+				}
+			}
+		}
+	}
+	addPro := func(e provIndex) {
+		item := SearchItem{Type: "provinsi", Label: e.Label}
+		item.IDs.Pro = e.Pro
+		if strings.HasPrefix(e.NameNorm, nq) {
+			prefixItems = append(prefixItems, item)
+		} else if strings.Contains(e.NameNorm, nq) {
+			containsItems = append(containsItems, item)
+		} else if fuzzy {
+			if e.NameNorm != "" && nq != "" && e.NameNorm[0] == nq[0] {
+				maxD := 2
+				ln := len([]rune(e.NameNorm))
+				if ln <= 5 {
+					maxD = 1
+				} else if ln > 12 {
+					maxD = 3
+				}
+				if levenshtein(e.NameNorm, nq) <= maxD {
+					fuzzyItems = append(fuzzyItems, item)
+				}
+			}
+		}
+	}
+
+	// choose levels
+	includeDes := level == "" || level == "desa"
+	includeKec := level == "" || level == "kecamatan"
+	includeKab := level == "" || level == "kabupaten"
+	includePro := level == "" || level == "provinsi"
+
+	if includeDes {
+		for _, e := range searchIndex.Desa {
+			addDes(e)
+		}
+	}
+	if includeKec {
+		for _, e := range searchIndex.Kecamatan {
+			addKec(e)
+		}
+	}
+	if includeKab {
+		for _, e := range searchIndex.Kabupaten {
+			addKab(e)
+		}
+	}
+	if includePro {
+		for _, e := range searchIndex.Provinsi {
+			addPro(e)
+		}
+	}
+
+	// Combine by priority
+	all := make([]SearchItem, 0, len(prefixItems)+len(containsItems)+len(fuzzyItems))
+	all = append(all, prefixItems...)
+	all = append(all, containsItems...)
+	all = append(all, fuzzyItems...)
+
+	// Pagination
+	total := len(all)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
+	page := all[start:end]
+
+	// Back-compat label list
+	labels := make([]string, len(page))
+	for i, it := range page {
+		labels[i] = it.Label
+	}
+
+	return c.JSON(SearchResponse{Query: q, Count: total, Offset: offset, Limit: limit, Results: labels, Items: page})
+}
+
 // startScraper godoc
 // @Summary      Start scraper
 // @Description  Start the data scraping process with specified number of threads
@@ -843,9 +1190,9 @@ func getAPIInfo(c *fiber.Ctx) error {
 		"message":          "Scraper control endpoints require API key authentication",
 		"api_key_required": apiKey != "",
 		"methods": fiber.Map{
-			"header":    "X-API-Key: your_api_key",
-			"query":     "?api_key=your_api_key",
-			"curl_example": fmt.Sprintf("curl -H \"X-API-Key: %s\" http://localhost:%s/api/v1/scraper/status", 
+			"header": "X-API-Key: your_api_key",
+			"query":  "?api_key=your_api_key",
+			"curl_example": fmt.Sprintf("curl -H \"X-API-Key: %s\" http://localhost:%s/api/v1/scraper/status",
 				func() string {
 					if apiKey != "" {
 						return "YOUR_API_KEY"
@@ -923,6 +1270,9 @@ func runAPI(port string) {
 		log.Fatal("Failed to load wilayah data:", err)
 	}
 
+	// Build search index
+	buildSearchIndex()
+
 	// Initialize global scraper
 	globalScraper = scraper.NewScraper(scraper.ScraperConfig{
 		MaxWorkers: 4,
@@ -959,6 +1309,9 @@ func runAPI(port string) {
 	// Statistics
 	api.Get("/stats", getStats)
 
+	// Search
+	api.Get("/search", searchWilayah)
+
 	// Wilayah endpoints
 	api.Get("/provinsi", getProvinsi)
 	api.Get("/kabupaten", getKabupaten)
@@ -988,6 +1341,7 @@ func runAPI(port string) {
 			"endpoints": fiber.Map{
 				"health":    "GET /api/v1/health - Health check",
 				"stats":     "GET /api/v1/stats - Statistics",
+				"search":    "GET /api/v1/search?q=Benteng - Cari desa/kecamatan/kabupaten/provinsi (level, limit, offset, fuzzy)",
 				"provinsi":  "GET /api/v1/provinsi - Get all provinces",
 				"kabupaten": "GET /api/v1/kabupaten?pro=73 - Get kabupaten by province",
 				"kecamatan": fiber.Map{
@@ -1008,16 +1362,17 @@ func runAPI(port string) {
 				},
 			},
 			"examples": fiber.Map{
-				"get_provinces":         "GET /api/v1/provinsi",
-				"get_kabupaten_sulsel":  "GET /api/v1/kabupaten?pro=73",
-				"get_kecamatan_selayar": "GET /api/v1/kecamatan?pro=73&kab=01",
+				"get_provinces":          "GET /api/v1/provinsi",
+				"get_kabupaten_sulsel":   "GET /api/v1/kabupaten?pro=73",
+				"get_kecamatan_selayar":  "GET /api/v1/kecamatan?pro=73&kab=01",
 				"get_kecamatan_combined": "GET /api/v1/kecamatan?kec=7301",
-				"get_desa_benteng":      "GET /api/v1/desa?pro=73&kab=01&kec=010",
-				"get_desa_combined":     "GET /api/v1/desa?desa=7301010",
-				"get_info_province":     "GET /api/v1/info/73",
-				"get_info_kabupaten":    "GET /api/v1/info/7301",
-				"get_info_kecamatan":    "GET /api/v1/info/7301010",
-				"get_info_desa":         "GET /api/v1/info/7301010001",
+				"get_desa_benteng":       "GET /api/v1/desa?pro=73&kab=01&kec=010",
+				"get_desa_combined":      "GET /api/v1/desa?desa=7301010",
+				"search_benteng":         "GET /api/v1/search?q=Benteng",
+				"get_info_province":      "GET /api/v1/info/73",
+				"get_info_kabupaten":     "GET /api/v1/info/7301",
+				"get_info_kecamatan":     "GET /api/v1/info/7301010",
+				"get_info_desa":          "GET /api/v1/info/7301010001",
 			},
 		})
 	})

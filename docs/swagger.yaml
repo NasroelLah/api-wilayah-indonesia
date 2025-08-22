@@ -133,6 +133,58 @@ definitions:
         example: stopping
         type: string
     type: object
+  main.SearchItem:
+    properties:
+      ids:
+        properties:
+          des:
+            example: "001"
+            type: string
+          kab:
+            example: "01"
+            type: string
+          kec:
+            example: "010"
+            type: string
+          pro:
+            example: "73"
+            type: string
+        type: object
+      label:
+        example: BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN
+        type: string
+      type:
+        example: desa
+        type: string
+    type: object
+  main.SearchResponse:
+    properties:
+      count:
+        example: 3
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/main.SearchItem'
+        type: array
+      limit:
+        example: 50
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      query:
+        example: Benteng
+        type: string
+      results:
+        example:
+        - BENTENG
+        - ' BENTENG'
+        - ' KEPULAUAN SELAYAR'
+        - ' SULAWESI SELATAN'
+        items:
+          type: string
+        type: array
+    type: object
   main.StatsResponse:
     properties:
       desa:
@@ -492,6 +544,54 @@ paths:
       summary: Stop scraper
       tags:
       - scraper
+  /search:
+    get:
+      consumes:
+      - application/json
+      description: 'Pencarian berdasarkan nama desa, kecamatan, kabupaten, atau provinsi.
+        Prioritas hasil: prefix match > substring match > fuzzy (opsional). Dapat
+        difilter level, paginasi, dan mengembalikan hasil terstruktur.'
+      parameters:
+      - description: Kata kunci pencarian (case-insensitive)
+        example: Benteng
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Batas jumlah hasil (1-200, default 50)
+        example: 20
+        in: query
+        name: limit
+        type: integer
+      - description: Offset/pagination start (default 0)
+        example: 0
+        in: query
+        name: offset
+        type: integer
+      - description: 'Batasi level: desa|kecamatan|kabupaten|provinsi'
+        example: desa
+        in: query
+        name: level
+        type: string
+      - description: Aktifkan fuzzy match (Levenshtein)
+        example: false
+        in: query
+        name: fuzzy
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Cari wilayah (desa/kecamatan/kabupaten/provinsi)
+      tags:
+      - search
   /stats:
     get:
       consumes:

@@ -38,6 +38,17 @@ api_wilayah_indonesia/
 - ✅ **Graceful shutdown**: Ctrl+C dengan checkpoint
 - ✅ **Real-time control**: Start/stop scraper via API
 - ✅ **Swagger Documentation**: Interactive API docs
+- ✅ **Search API**: Pencarian desa/kecamatan/kabupaten/provinsi (+ filter level, pagination, fuzzy opsional)
+
+## 🆕 Update (2025-08-23)
+
+Penambahan endpoint pencarian wilayah dengan fitur:
+- Endpoint baru: `GET /api/v1/search`
+- Pencarian lintas level: desa, kecamatan, kabupaten, provinsi
+- Filter level (`level=desa|kecamatan|kabupaten|provinsi`)
+- Pagination (`limit`, `offset`)
+- Relevansi: prefix > substring, fuzzy (Levenshtein) opsional (`fuzzy=true`)
+- Hasil terstruktur: termasuk `type`, `ids` (pro, kab, kec, des), dan `label`
 
 ## 🚀 Quick Start
 
@@ -183,6 +194,47 @@ Response:
 ```
 
 ### Data Endpoints
+
+#### 3. Search Wilayah
+```
+GET /api/v1/search?q=Benteng
+```
+
+Query params:
+- `q` atau `query` (wajib): kata kunci, case-insensitive
+- `level` (opsional): `desa|kecamatan|kabupaten|provinsi`
+- `limit` (opsional): default 50, max 200
+- `offset` (opsional): default 0
+- `fuzzy` (opsional): `true|false` (default `false`)
+
+Contoh:
+```
+GET /api/v1/search?q=Benteng
+GET /api/v1/search?q=Gantarang&level=kecamatan
+GET /api/v1/search?q=Bulukumba&level=kabupaten&limit=20&offset=20
+GET /api/v1/search?q=Sulawesi%20Selatan&level=provinsi
+GET /api/v1/search?q=Bentng&fuzzy=true
+```
+
+Response (contoh ringkas):
+```json
+{
+  "query": "Benteng",
+  "count": 3,
+  "offset": 0,
+  "limit": 50,
+  "results": [
+    "BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN"
+  ],
+  "items": [
+    {
+      "type": "desa",
+      "ids": { "pro": "73", "kab": "01", "kec": "010", "des": "001" },
+      "label": "BENTENG, BENTENG, KEPULAUAN SELAYAR, SULAWESI SELATAN"
+    }
+  ]
+}
+```
 
 #### 3. Get All Provinces
 ```
@@ -507,30 +559,6 @@ go run main.go api
 PORT=8080 SCRAPER_API_KEY="my-super-secret-key-123" go run main.go api
 ```
 
-## 🧪 Testing API Authentication
-
-Disediakan script testing untuk validasi API authentication:
-
-**Windows PowerShell:**
-```powershell
-# Edit API key di file sesuai dengan yang di-generate server
-.\test_api_auth.ps1
-```
-
-**Linux/macOS:**
-```bash
-# Edit API key di file sesuai dengan yang di-generate server  
-chmod +x test_api_auth.sh
-./test_api_auth.sh
-```
-
-Script akan test:
-- ✅ Public endpoint (tidak perlu auth)
-- ❌ Protected endpoint tanpa auth (expected error)
-- ✅ Protected endpoint dengan header auth
-- ✅ Start/stop scraper dengan query parameter auth
-- ✅ Progress monitoring dengan authentication
-
 ## CORS
 
 API ini sudah dikonfigurasi dengan CORS untuk memungkinkan akses dari frontend applications.
@@ -538,7 +566,7 @@ API ini sudah dikonfigurasi dengan CORS untuk memungkinkan akses dari frontend a
 ## Performance Notes
 
 - Data dimuat ke memory saat startup untuk performa optimal
-- Pencarian menggunakan loop sederhana (bisa dioptimasi dengan map untuk dataset yang lebih besar)
+- Pencarian menggunakan in-memory index ter-normalisasi per level untuk kecepatan (prefix/substr), dengan opsi fuzzy untuk typo tolerance
 - JSON response streaming untuk efisiensi memory
 
 ## License
@@ -567,18 +595,5 @@ rm go.sum
 go mod tidy
 ```
 
-### Import Error
-Jika ada error unused imports, pastikan file `main.go` tidak memiliki import yang tidak terpakai.
-
 ### File JSON Tidak Ditemukan
 Pastikan file `wilayah_final_2025.json` ada di direktori yang sama dengan `main.go`.
-
-### Port Sudah Digunakan
-Jika port 3000 sudah digunakan, set environment variable PORT:
-```bash
-# Windows
-$env:PORT=8080; go run main.go
-
-# Linux/macOS
-PORT=8080 go run main.go
-```
